@@ -22,7 +22,7 @@ class Qwen35Model:
             "stream": True,
             "temperature": 0.0,
             "chat_template_kwargs": {
-                "enable_thinking": False
+                "enable_thinking": True,
             }
         }
         
