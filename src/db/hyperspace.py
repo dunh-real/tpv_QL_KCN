@@ -56,7 +56,7 @@ class EnterpriseDocumentStore:
             batch_docs = documents[i:i+batch_size]
             
             ids = []
-            typed_metadatas = []
+            metadatas = []
             
             import hashlib
             for index, doc in enumerate(batch_docs):
@@ -65,12 +65,12 @@ class EnterpriseDocumentStore:
                 
                 ids.append(doc_id_hash)
                 
-                typed_metadatas.append(doc)
+                metadatas.append(doc)
                 
             success = self.client.batch_insert(
                 vectors=batch_vecs,
                 ids=ids,
-                typed_metadatas=typed_metadatas,
+                metadatas=metadatas,
                 collection=self.collection_name
             )
             if success:
@@ -99,7 +99,7 @@ class EnterpriseDocumentStore:
             results = []
             for res in raw_results:
                 if res.get("distance", 1.0) <= (1.0 - score_threshold):
-                    payload = res.get("typed_metadata", {})
+                    payload = res.get("metadata", {})
                     results.append({
                         "doc_id": payload.get("doc_id", str(res.get("id"))),
                         "score": 1.0 - res.get("distance", 0.0),
