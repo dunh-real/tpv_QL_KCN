@@ -1,5 +1,6 @@
 from src.core.config import settings
 from langchain_openai import ChatOpenAI
+from src.services.cache import cache_llm_response
 import httpx
 import json
 class Qwen3Model:
@@ -9,6 +10,8 @@ class Qwen3Model:
             api_key=settings.LLM_API_KEY,
             model=settings.LLM_MODEL_QWEN3,
             temperature=0.7)
+            
+    @cache_llm_response(ttl_seconds=86400)
     async def generate(self,prompt:str) -> str :
         try:    
             response = await self.model.ainvoke(prompt)

@@ -1,5 +1,6 @@
 from src.core.config import settings
 from langchain_openai import ChatOpenAI
+from src.services.cache import cache_llm_response
 
 class Gemma2Model:
     def __init__(self):
@@ -9,6 +10,8 @@ class Gemma2Model:
             model=settings.LLM_MODEL_GEMMA,
             temperature=0.7,
             stop=["<end_of_turn>"])
+            
+    @cache_llm_response(ttl_seconds=86400)
     async def generate(self,prompt:str) -> str :
         try:
             response = await self.model.ainvoke(prompt)
