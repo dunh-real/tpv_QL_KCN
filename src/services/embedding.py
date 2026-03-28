@@ -7,7 +7,8 @@ logger = get_logger(__name__)
 class EmbeddingService:
     def __init__(self):
         self.embedding = OllamaEmbeddings(
-            model=settings.EMBEDDING_MODEL
+            model=settings.EMBEDDING_MODEL,
+            base_url=settings.OLLAMA_BASE_URL
         )
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """Nhúng văn bản thành vector"""

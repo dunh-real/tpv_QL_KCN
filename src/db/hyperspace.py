@@ -2,7 +2,9 @@ from src.core.config import settings
 from src.core.logger import get_logger
 from src.services.embedding import EmbeddingService
 from typing import List, Dict, Any, Optional
+from langchain_core.documents import Document
 from hyperspace import HyperspaceClient
+import hashlib
 import uuid
 import sys
 
@@ -45,11 +47,11 @@ class EnterpriseDocumentStore:
 
 
 
-    def ingest_documents(self, documents: List[Dict[str, Any]], batch_size: int = 200):
-        """Ingest dữ liệu theo batch"""
-        text_to_embed = [doc.get("content", "") for doc in documents]
+    def ingest_documents(self, documents: List[Document], batch_size: int = 200):
+        """Ingest dữ liệu theo batch, chống ghi đè ID"""
+        text_to_embed = [doc.page_content for doc in documents]
         embeddings = self.embedding_service.embed_texts(text_to_embed)
-        logger.info("Dang luu du lieu vao HyperSpaceDB ...")
+        logger.info("Đang lưu dữ liệu vào HyperSpaceDB ...")
         
         for i in range(0, len(documents), batch_size):
             batch_vecs = embeddings[i:i+batch_size]
@@ -58,25 +60,31 @@ class EnterpriseDocumentStore:
             ids = []
             metadatas = []
             
-            import hashlib
             for index, doc in enumerate(batch_docs):
-                doc_id_string = doc.get("doc_id", uuid.uuid4().hex)
-                doc_id_hash = int(hashlib.md5(doc_id_string.encode('utf-8')).hexdigest(), 16) % (2**31 - 1)
+                base_doc_id = doc.metadata.get("doc_id", uuid.uuid4().hex)
+                chunk_index = doc.metadata.get("chunk_index", index)
+                
+                unique_chunk_string = f"{base_doc_id}_chunk_{chunk_index}"
+                doc_id_hash = int(hashlib.md5(unique_chunk_string.encode('utf-8')).hexdigest(), 16) % (2**31 - 1)
                 
                 ids.append(doc_id_hash)
                 
-                metadatas.append(doc)
+                raw = {"content": doc.page_content, **doc.metadata}
+                clean_metadata = {str(k): str(v) for k, v in raw.items()}
+                metadatas.append(clean_metadata)
+
+            safe_vecs = [[float(x) for x in vec] for vec in batch_vecs]
                 
             success = self.client.batch_insert(
-                vectors=batch_vecs,
+                vectors=safe_vecs,
                 ids=ids,
                 metadatas=metadatas,
                 collection=self.collection_name
             )
             if success:
-                logger.info(f"Đã ingest batch {i//batch_size + 1} / {len(documents)//batch_size + 1}")
+                logger.info(f"Đã ingest batch {i//batch_size + 1} / {(len(documents)-1)//batch_size + 1}")
             else:
-                logger.error(f"Lỗi khi ingest batch {i//batch_size + 1}")
+                raise RuntimeError(f"HyperspaceDB từ chối ingest batch {i//batch_size + 1} — kiểm tra kết nối và collection.")
 
     def search_hybrid(self, query: str, top_k: int = 5, alpha: float = 0.5, metadata_filters: Dict[str, Any] = None, score_threshold: float = 0.50) -> List[Dict[str, Any]]:
         try:
