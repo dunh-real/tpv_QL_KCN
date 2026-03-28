@@ -4,7 +4,6 @@ from pymongo import MongoClient
 
 logger = get_logger(__name__)
 
-# Khởi tạo Lazy – client được tạo khi cần, an toàn với Celery fork
 _client = None
 _db = None
 
@@ -19,7 +18,6 @@ def get_db():
 def get_docs_collection():
     return get_db()[settings.MONGODB_COLLECTION_NAME]
 
-# Alias tương thích ngược để các module cũ không cần sửa
 class _LazyCollection:
     def __getattr__(self, name):
         return getattr(get_docs_collection(), name)
