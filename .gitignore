@@ -1,10 +1,45 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+# Kho lưu trữ file tạm
+local_storage/
 
-# Virtual environments
-.venv
+# Dữ liệu Database
+mongodb_data/
+qdrant_storage/
+data/
+
+# Python / Environment
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Environment / Secrets
+.env
+
+# MacOS / IDEs
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
