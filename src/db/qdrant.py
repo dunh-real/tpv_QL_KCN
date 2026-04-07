@@ -1,9 +1,10 @@
 from __future__ import annotations
+import asyncio
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 from langchain_core.documents import Document
-from qdrant_client import QdrantClient, models
+from qdrant_client import AsyncQdrantClient, models
 from qdrant_client.http.models import (
     Distance,
     HnswConfigDiff,
@@ -19,7 +20,7 @@ from qdrant_client.http.models import (
 )
 from src.core.config import settings
 from src.core.logger import get_logger
-from src.services.embedding import EmbeddingService
+from src.services.embedding_service import EmbeddingService
 logger = get_logger(__name__)
 
 @dataclass
@@ -61,25 +62,26 @@ class QdrantDocumentStore:
     def __init__(self, config: QdrantConfig, embedding_service: EmbeddingService):
         self.config = config
         self.embedding_service = embedding_service
-        self.client = QdrantClient(
+        self.client = AsyncQdrantClient(
             url=self.config.url,
             api_key=self.config.api_key,
             timeout=60,
         )
-    def create_collection(self):
+
+    async def create_collection(self) -> None:
         """
         Tạo collection với:
           - 1 dense named vector 
           - 1 sparse named vector 
         """
         name = self.config.collection_name
-        exists = self.client.collection_exists(name)
+        exists = await self.client.collection_exists(name)
         if exists:
-            collection_info = self.client.get_collection(name)
+            collection_info = await self.client.get_collection(name)
             existing_size = collection_info.config.params.vectors[self.config.dense_vector_name].size
             if existing_size != self.config.dense_size:
                 print(f"[qdrant] Dimension mismatch: existing={existing_size}, config={self.config.dense_size}. Recreating collection '{name}'...")
-                self.client.delete_collection(name)
+                await self.client.delete_collection(name)
             else:
                 print(f"[qdrant] Collection '{name}' đã tồn tại và khớp dimension, bỏ qua tạo mới.")
                 return
@@ -92,7 +94,7 @@ class QdrantDocumentStore:
                     always_ram=self.config.quantization_always_ram,
                 )
             )
-        self.client.create_collection(
+        await self.client.create_collection(
             collection_name=name,
             vectors_config={
                 self.config.dense_vector_name: VectorParams(
@@ -120,30 +122,34 @@ class QdrantDocumentStore:
             ),
         )
 
-    def collection_info(self) -> dict[str, Any]:
-        info = self.client.get_collection(self.config.collection_name)
+    async def collection_info(self) -> dict[str, Any]:
+        info = await self.client.get_collection(self.config.collection_name)
         return {
             "status": info.status,
             "vectors_count": info.vectors_count,
             "points_count": info.points_count,
             "indexed_vectors_count": info.indexed_vectors_count,
         }
-    def upsert_documents(self, documents: List[Document], batch_size: int = 64):
+
+    async def upsert_documents(self, documents: List[Document], batch_size: int = 64) -> None:
         """Upsert documents vào Qdrant collection.
         Args:
+        
             documents: List of Document objects to upsert.
             batch_size: Number of documents to upsert in each batch.
         """
-        self.create_collection()
+        await self.create_collection()
         total_points = 0
         for i in range(0, len(documents), batch_size):
             batch_docs = documents[i : i + batch_size]
             texts = [doc.page_content for doc in batch_docs]
             
-            # Dense vectors from Ollama
-            dense_vectors = self.embedding_service.embed_documents(texts)
-            # Sparse vectors from FastEmbed
-            sparse_vectors = self._encode_sparse(texts, batch_size=batch_size)
+            # Dense vectors từ Ollama (async)
+            dense_vectors = await self.embedding_service.embed_documents(texts)
+            # Sparse vectors từ FastEmbed (CPU-bound sync → thread pool)
+            sparse_vectors = await asyncio.to_thread(
+                self._encode_sparse, texts, batch_size
+            )
             
             points = []
             for doc, dense, sparse in zip(batch_docs, dense_vectors, sparse_vectors):
@@ -164,7 +170,7 @@ class QdrantDocumentStore:
                 )
                 points.append(point)
                 
-            self.client.upsert(
+            await self.client.upsert(
                 collection_name=self.config.collection_name,
                 points=points
             )
@@ -173,7 +179,7 @@ class QdrantDocumentStore:
             
         logger.info(f"Hoàn thành upsert tổng cộng {total_points} documents vào collection '{self.config.collection_name}'.")
 
-    def hybrid_search(self, query: str, limit: int, filter_dict: Optional[dict] = None) -> List[Document]:
+    async def hybrid_search(self, query: str, limit: int, filter_dict: Optional[dict] = None) -> List[Document]:
         """Tìm kiếm kết hợp dense và sparse sử dụng RRF.
         Args:
             query: Query string.
@@ -182,10 +188,14 @@ class QdrantDocumentStore:
         Returns:
             List of Document objects.
         """
-
         limit = limit or self.config.fusion_limit
-        dense_query = self.embedding_service.embed_query(query)
-        sparse_query_list = self._encode_sparse([query], batch_size=1)
+
+        # Dense query (async)
+        dense_query = await self.embedding_service.embed_query(query)
+        # Sparse query (CPU-bound sync → thread pool)
+        sparse_query_list = await asyncio.to_thread(
+            self._encode_sparse, [query], 1
+        )
         sparse_query = sparse_query_list[0]
         
         # Tạo query filter nếu cần thiết
@@ -223,7 +233,7 @@ class QdrantDocumentStore:
             ),
         ]
         
-        results = self.client.query_points(
+        results = await self.client.query_points(
             collection_name=self.config.collection_name,
             prefetch=prefetch,
             query=models.FusionQuery(
@@ -259,24 +269,23 @@ class QdrantDocumentStore:
                     )
                 )
         return results
-    def drop_collection(self) -> None:
-        self.client.delete_collection(self.config.collection_name)
+
+    async def drop_collection(self) -> None:
+        await self.client.delete_collection(self.config.collection_name)
         print(f"[qdrant] Collection '{self.config.collection_name}' đã bị xoá.")
     
-    def delete_by_filter(self, filter_conditions: models.Filter) -> None:
-        self.client.delete(
+    async def delete_by_filter(self, filter_conditions: models.Filter) -> None:
+        await self.client.delete(
             collection_name=self.config.collection_name,
             points_selector=models.FilterSelector(filter=filter_conditions),
             wait=True,
         )
         print("[qdrant] Đã xoá points theo filter.")
-    def delete_by_ids(self, ids: list[str | int]) -> None:
-        self.client.delete(
+
+    async def delete_by_ids(self, ids: list[str | int]) -> None:
+        await self.client.delete(
             collection_name=self.config.collection_name,
             points_selector=models.PointIdsList(points=ids),
             wait=True,
         )
         print(f"[qdrant] Đã xoá {len(ids)} points.")
-
-
-    

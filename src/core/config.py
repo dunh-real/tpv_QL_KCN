@@ -20,7 +20,6 @@ class Settings(BaseSettings):
 
     VECTOR_DIMENSION:int
 
-
     QDRANT_HOST:str
     QDRANT_PORT:int
     QDRANT_COLLECTION_NAME:str
@@ -28,6 +27,7 @@ class Settings(BaseSettings):
 
     EMBEDDING_MODEL: str
     OCR_MODEL: str
+    RERANK_MODEL:str
 
     REDIS_HOST: str 
     REDIS_PORT: int 
