@@ -70,12 +70,14 @@ class IngestionService:
             if not parent_id:
                 logger.warning("Parent chunk không có parent_id, bỏ qua.")
                 continue
+            metadata = dict(parent.metadata)
+            metadata.pop("parent_id", None)
+
             self.docs_collection.update_one(
-                {"parent_id": parent_id},
+                {"_id": parent_id},
                 {"$set": {
-                    "parent_id": parent_id,
                     "content": parent.page_content,
-                    "metadata": parent.metadata,
+                    "metadata": metadata,
                 }},
                 upsert=True,
             )
