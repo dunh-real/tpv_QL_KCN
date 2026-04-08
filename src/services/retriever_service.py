@@ -101,11 +101,11 @@ class RetrieverService:
         def _fetch_parents() -> dict[str, dict]:
             collection = get_docs_collection()
             rows = collection.find(
-                {"parent_id": {"$in": parent_ids}},
-                {"parent_id": 1, "content": 1, "metadata": 1, "_id": 0},
+                {"_id": {"$in": parent_ids}},
+                {"content": 1, "metadata": 1, "_id": 1},
             )
             return {
-                row["parent_id"]: {
+                row["_id"]: {
                     "content": row.get("content", ""),
                     "metadata": row.get("metadata", {}),
                 }
