@@ -36,9 +36,9 @@ class RetrieverService:
         self,
         query: str,
         qdrant_top_k: int = 10,
-        rerank_top_k: int = 5,
+        rerank_top_k: int = 3,
         filter_dict: Optional[dict] = None,
-        rerank_threshold: Optional[float] = None,
+        rerank_threshold: Optional[float] = 0.5,
     ) -> List[Document]:
         """
         Thực hiện toàn bộ pipeline retrieve.
@@ -130,6 +130,3 @@ class RetrieverService:
 
         logger.info(f"Pipeline hoàn thành. Trả về {len(results)} documents.")
         return results
-
-
-retriever_service = RetrieverService()

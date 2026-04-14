@@ -34,5 +34,3 @@ class EmbeddingService:
             List[float]: The vector representation of the query."""
         formatted_query = f"query: {query}"
         return await self.embedding.aembed_query(formatted_query)
-
-embedding_service = EmbeddingService()

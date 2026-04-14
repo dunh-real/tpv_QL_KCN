@@ -80,10 +80,10 @@ class QdrantDocumentStore:
             collection_info = await self.client.get_collection(name)
             existing_size = collection_info.config.params.vectors[self.config.dense_vector_name].size
             if existing_size != self.config.dense_size:
-                print(f"[qdrant] Dimension mismatch: existing={existing_size}, config={self.config.dense_size}. Recreating collection '{name}'...")
+                logger.warning(f"[qdrant] Dimension mismatch: existing={existing_size}, config={self.config.dense_size}. Recreating collection '{name}'...")
                 await self.client.delete_collection(name)
             else:
-                print(f"[qdrant] Collection '{name}' đã tồn tại và khớp dimension, bỏ qua tạo mới.")
+                logger.info(f"[qdrant] Collection '{name}' đã tồn tại và khớp dimension, bỏ qua tạo mới.")
                 return
         quantization: QuantizationConfig | None = None
         if self.config.use_quantization:
@@ -204,10 +204,15 @@ class QdrantDocumentStore:
             # chuyển đổi dictionary filter thành Qdrant filter
             must_conditions = []
             for key, value in filter_dict.items():
+                if isinstance(value, list):
+                    match_condition = models.MatchAny(any=value)
+                else:
+                    match_condition = models.MatchValue(value=value)
+                    
                 must_conditions.append(
                     models.FieldCondition(
                         key=key,
-                        match=models.MatchValue(value=value)
+                        match=match_condition
                     )
                 )
             if must_conditions:
@@ -272,7 +277,7 @@ class QdrantDocumentStore:
 
     async def drop_collection(self) -> None:
         await self.client.delete_collection(self.config.collection_name)
-        print(f"[qdrant] Collection '{self.config.collection_name}' đã bị xoá.")
+        logger.info(f"[qdrant] Collection '{self.config.collection_name}' đã bị xoá.")
     
     async def delete_by_filter(self, filter_conditions: models.Filter) -> None:
         await self.client.delete(
@@ -280,7 +285,7 @@ class QdrantDocumentStore:
             points_selector=models.FilterSelector(filter=filter_conditions),
             wait=True,
         )
-        print("[qdrant] Đã xoá points theo filter.")
+        logger.info("[qdrant] Đã xoá points theo filter.")
 
     async def delete_by_ids(self, ids: list[str | int]) -> None:
         await self.client.delete(
@@ -288,4 +293,4 @@ class QdrantDocumentStore:
             points_selector=models.PointIdsList(points=ids),
             wait=True,
         )
-        print(f"[qdrant] Đã xoá {len(ids)} points.")
+        logger.info(f"[qdrant] Đã xoá {len(ids)} points.")
