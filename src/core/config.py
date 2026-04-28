@@ -43,9 +43,19 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int
     POSTGRES_DB: str
 
+    MYSQL_USER: str
+    MYSQL_PASSWORD: str
+    MYSQL_HOST: str
+    MYSQL_PORT: int
+    MYSQL_DB: str
+
     @property
     def DATABASE_URL(self) -> str:
         return f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+
+    @property
+    def MYSQL_DATABASE_URL(self) -> str:
+        return f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DB}"
 
     LOCAL_STORAGE_DIR: str = "local_storage"
     

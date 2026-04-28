@@ -1,6 +1,7 @@
 
 
 import re
+import asyncio
 from src.agent.generate_sql_agent.state import GenerateSQLState
 from src.agent.generate_sql_agent.constants import FORBIDDEN_STATEMENT_TYPES, FORBIDDEN_KEYWORDS_FALLBACK
 from src.core.logger import get_logger
@@ -47,7 +48,7 @@ def validate_with_sqlglot(sql: str) -> tuple[bool, str | None, str | None]:
     """Sử dụng AST Parser để siêu kiểm tra."""
     try:
         # Parse SQL thành biểu thức AST
-        expressions = sqlglot.parse(sql, read="postgres")
+        expressions = sqlglot.parse(sql, read="mysql")
         
         if not expressions:
             return False, "Câu lệnh trống sau khi parse.", "EMPTY"
@@ -73,19 +74,19 @@ def validate_with_sqlglot(sql: str) -> tuple[bool, str | None, str | None]:
             pass
 
         # Build lại SQL an toàn (normalization)
-        safe_sql = sqlglot.transpile(sql, read="postgres", write="postgres")[0]
+        safe_sql = sqlglot.transpile(sql, read="mysql", write="mysql")[0]
              
         return True, safe_sql.strip().rstrip(';') + ";", None
 
     except sqlglot.errors.ParseError as e:
         logger.error(f"[validate_sql] Lỗi cú pháp (sqlglot): {e}")
-        return False, f"SQL Syntax Error: {str(e)}. Hãy kiểm tra lại cấu trúc câu lệnh.", "SYNTAX_ERROR"
+        return False, f"Lỗi cú pháp SQL: {str(e)}", "SYNTAX_ERROR"
     except Exception as e:
         logger.error(f"[validate_sql] Lỗi khi xử lý AST: {e}")
-        return False, f"Unexpected Validation Error: {e}", "SYNTAX_ERROR"
+        return False, f"Lỗi không mong muốn khi kiểm duyệt: {e}", "SYNTAX_ERROR"
 
 
-def validate_sql_node(state: GenerateSQLState) -> dict:
+async def validate_sql_node(state: GenerateSQLState) -> dict:
     """
     Kiểm tra cú pháp, tính an toàn và tự động chèn LIMIT vào câu SQL.
     """
@@ -102,7 +103,7 @@ def validate_sql_node(state: GenerateSQLState) -> dict:
     logger.info(f"[validate_sql] Đang kiểm duyệt SQL...")
 
     if HAS_SQLGLOT:
-        is_valid, result_or_error, err_type = validate_with_sqlglot(raw_sql)
+        is_valid, result_or_error, err_type = await asyncio.to_thread(validate_with_sqlglot, raw_sql)
     else:
         is_valid, result_or_error, err_type = validate_with_regex(raw_sql)
 

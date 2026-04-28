@@ -15,8 +15,7 @@ class GenerateSQLState(TypedDict, total=False):
 
 
     db_schema: Optional[str]
-    """DDL schema của database, dùng làm context cho LLM.
-    Được fetch 1 lần trong node fetch_schema và tái sử dụng ở các node sau."""
+    """DDL schema của database, dùng làm context cho LLM."""  
 
     is_cache_hit: bool
     """True nếu đã tìm thấy SQL tương tự trong semantic cache."""

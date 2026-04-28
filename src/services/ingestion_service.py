@@ -83,3 +83,15 @@ class IngestionService:
             )
             count += 1
         return count
+
+
+_ingestion_instance: IngestionService | None = None
+
+
+def get_ingestion_service() -> IngestionService:
+    """Lazy singleton — tạo IngestionService 1 lần duy nhất."""
+    global _ingestion_instance
+    if _ingestion_instance is None:
+        logger.info("[singleton] Khởi tạo IngestionService instance...")
+        _ingestion_instance = IngestionService()
+    return _ingestion_instance

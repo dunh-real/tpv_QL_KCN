@@ -130,3 +130,15 @@ class RetrieverService:
 
         logger.info(f"Pipeline hoàn thành. Trả về {len(results)} documents.")
         return results
+
+
+_retriever_instance: RetrieverService | None = None
+
+
+def get_retriever_service() -> RetrieverService:
+    """Lazy singleton — tạo RetrieverService 1 lần duy nhất."""
+    global _retriever_instance
+    if _retriever_instance is None:
+        logger.info("[singleton] Khởi tạo RetrieverService instance...")
+        _retriever_instance = RetrieverService()
+    return _retriever_instance

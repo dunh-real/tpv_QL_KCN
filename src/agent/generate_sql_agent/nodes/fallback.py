@@ -44,6 +44,6 @@ async def fallback_node(state: GenerateSQLState) -> dict:
         logger.error(f"[fallback] Lỗi LLM khi cố gắng sửa SQL: {e}")
         return {
             "retries": retries + 1,
-            "error": f"Lỗi nghiêm trậng khi fallback: {str(e)}",
+            "error": f"Lỗi nghiêm trọng khi fallback: {str(e)}",
             "is_valid": False
         }
