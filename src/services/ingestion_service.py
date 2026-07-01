@@ -30,7 +30,7 @@ class IngestionService:
             embedding_service=embedding_service,
         )
 
-    async def ingest(
+    def ingest(
         self,
         parent_chunks: List[Document],
         children_chunks: List[Document],
@@ -46,12 +46,12 @@ class IngestionService:
         """
         # Bước 1: Lưu parent_chunks vào MongoDB
         logger.info(f"Bước 1 — Lưu {len(parent_chunks)} parent chunk(s) vào MongoDB...")
-        saved_parents = await asyncio.to_thread(self._save_parents_to_mongo, parent_chunks)
+        saved_parents = self._save_parents_to_mongo(parent_chunks)
         logger.info(f"  -> Đã lưu {saved_parents} parent chunk(s).")
 
         # Bước 2: Upsert children_chunks vào Qdrant
         logger.info(f"Bước 2 — Upsert {len(children_chunks)} children chunk(s) vào Qdrant...")
-        await self.document_store.upsert_documents(children_chunks)
+        self.document_store.upsert_documents(children_chunks)
         logger.info(f"  -> Đã upsert {len(children_chunks)} children chunk(s).")
 
         return {

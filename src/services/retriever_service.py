@@ -32,7 +32,7 @@ class RetrieverService:
         )
         self.reranker = RerankerService()
 
-    async def retrieve(
+    def retrieve(
         self,
         query: str,
         qdrant_top_k: int = 10,
@@ -55,7 +55,7 @@ class RetrieverService:
         """
 
         logger.info(f"Bước 1 — Qdrant hybrid search")
-        qdrant_docs: List[Document] = await self.document_store.hybrid_search(
+        qdrant_docs: List[Document] = self.document_store.hybrid_search(
             query=query,
             limit=qdrant_top_k,
             filter_dict=filter_dict,
@@ -70,8 +70,8 @@ class RetrieverService:
         logger.info(f"[retriever] Bước 2 — Rerank")
         texts = [doc.page_content for doc in qdrant_docs]
 
-        reranked_pairs: list[tuple[str, float]] = await asyncio.to_thread(
-            self.reranker.rerank, query, texts, rerank_top_k, rerank_threshold
+        reranked_pairs: list[tuple[str, float]] = self.reranker.rerank(
+            query, texts, rerank_top_k, rerank_threshold
         )
 
         # Map text → Document gốc để lấy lại metadata (parent_id)
@@ -112,7 +112,7 @@ class RetrieverService:
                 for row in rows
             }
 
-        parent_map = await asyncio.to_thread(_fetch_parents)
+        parent_map = _fetch_parents()
         logger.info(f"Fetch được {len(parent_map)} parent documents từ MongoDB.")
 
         results: List[Document] = []
