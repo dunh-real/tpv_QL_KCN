@@ -32,13 +32,13 @@ class RetrieverService:
         )
         self.reranker = RerankerService()
 
-    async def retrieve(
+    def retrieve(
         self,
         query: str,
         qdrant_top_k: int = 10,
-        rerank_top_k: int = 5,
+        rerank_top_k: int = 3,
         filter_dict: Optional[dict] = None,
-        rerank_threshold: Optional[float] = None,
+        rerank_threshold: Optional[float] = 0.5,
     ) -> List[Document]:
         """
         Thực hiện toàn bộ pipeline retrieve.
@@ -55,7 +55,7 @@ class RetrieverService:
         """
 
         logger.info(f"Bước 1 — Qdrant hybrid search")
-        qdrant_docs: List[Document] = await self.document_store.hybrid_search(
+        qdrant_docs: List[Document] = self.document_store.hybrid_search(
             query=query,
             limit=qdrant_top_k,
             filter_dict=filter_dict,
@@ -70,8 +70,8 @@ class RetrieverService:
         logger.info(f"[retriever] Bước 2 — Rerank")
         texts = [doc.page_content for doc in qdrant_docs]
 
-        reranked_pairs: list[tuple[str, float]] = await asyncio.to_thread(
-            self.reranker.rerank, query, texts, rerank_top_k, rerank_threshold
+        reranked_pairs: list[tuple[str, float]] = self.reranker.rerank(
+            query, texts, rerank_top_k, rerank_threshold
         )
 
         # Map text → Document gốc để lấy lại metadata (parent_id)
@@ -101,18 +101,18 @@ class RetrieverService:
         def _fetch_parents() -> dict[str, dict]:
             collection = get_docs_collection()
             rows = collection.find(
-                {"parent_id": {"$in": parent_ids}},
-                {"parent_id": 1, "content": 1, "metadata": 1, "_id": 0},
+                {"_id": {"$in": parent_ids}},
+                {"content": 1, "metadata": 1, "_id": 1},
             )
             return {
-                row["parent_id"]: {
+                row["_id"]: {
                     "content": row.get("content", ""),
                     "metadata": row.get("metadata", {}),
                 }
                 for row in rows
             }
 
-        parent_map = await asyncio.to_thread(_fetch_parents)
+        parent_map = _fetch_parents()
         logger.info(f"Fetch được {len(parent_map)} parent documents từ MongoDB.")
 
         results: List[Document] = []
@@ -132,4 +132,13 @@ class RetrieverService:
         return results
 
 
-retriever_service = RetrieverService()
+_retriever_instance: RetrieverService | None = None
+
+
+def get_retriever_service() -> RetrieverService:
+    """Lazy singleton — tạo RetrieverService 1 lần duy nhất."""
+    global _retriever_instance
+    if _retriever_instance is None:
+        logger.info("[singleton] Khởi tạo RetrieverService instance...")
+        _retriever_instance = RetrieverService()
+    return _retriever_instance

@@ -5,6 +5,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 from src.core.logger import get_logger
+import hashlib
 
 logger = get_logger(__name__)
 
@@ -75,10 +76,12 @@ class ChunkingBatch:
 
         parent_chunks: List[Document] = []
         children_chunks: List[Document] = []
+        chunk_counter = 0
 
         for parent in parent_docs:
-            parent_id = str(uuid.uuid4())
+            parent_id = hashlib.md5(parent.page_content.encode("utf-8")).hexdigest()
             merged_metadata = {**original_metadata, **parent.metadata, "parent_id": parent_id}
+            
             headers = [parent.metadata[h] for h in ["H1", "H2", "H3", "H4"] if h in parent.metadata]
             headers_context = " > ".join(headers)
 
@@ -95,7 +98,8 @@ class ChunkingBatch:
                     # Children chunk cho bảng
                     table_preview = self.get_table_preview(table_content)
                     contextualized_table = f"[Bối cảnh: {headers_context} - Bảng thống kê]\n{table_preview}"
-                    table_meta = {**merged_metadata, "chunk_type": "table"}
+                    table_meta = {**merged_metadata, "chunk_type": "table", "chunk_id": chunk_counter}
+                    chunk_counter += 1
                     children_chunks.append(
                         Document(page_content=contextualized_table, metadata=table_meta)
                     )
@@ -113,7 +117,8 @@ class ChunkingBatch:
                     contextualized_text = (
                         f"[Bối cảnh: {headers_context}]\n{child_text}" if headers_context else child_text
                     )
-                    text_meta = {**merged_metadata, "chunk_type": "text"}
+                    text_meta = {**merged_metadata, "chunk_type": "text", "chunk_id": chunk_counter}
+                    chunk_counter += 1
                     children_chunks.append(
                         Document(page_content=contextualized_text, metadata=text_meta)
                     )

@@ -30,7 +30,7 @@ class IngestionService:
             embedding_service=embedding_service,
         )
 
-    async def ingest(
+    def ingest(
         self,
         parent_chunks: List[Document],
         children_chunks: List[Document],
@@ -46,12 +46,12 @@ class IngestionService:
         """
         # Bước 1: Lưu parent_chunks vào MongoDB
         logger.info(f"Bước 1 — Lưu {len(parent_chunks)} parent chunk(s) vào MongoDB...")
-        saved_parents = await asyncio.to_thread(self._save_parents_to_mongo, parent_chunks)
+        saved_parents = self._save_parents_to_mongo(parent_chunks)
         logger.info(f"  -> Đã lưu {saved_parents} parent chunk(s).")
 
         # Bước 2: Upsert children_chunks vào Qdrant
         logger.info(f"Bước 2 — Upsert {len(children_chunks)} children chunk(s) vào Qdrant...")
-        await self.document_store.upsert_documents(children_chunks)
+        self.document_store.upsert_documents(children_chunks)
         logger.info(f"  -> Đã upsert {len(children_chunks)} children chunk(s).")
 
         return {
@@ -70,14 +70,28 @@ class IngestionService:
             if not parent_id:
                 logger.warning("Parent chunk không có parent_id, bỏ qua.")
                 continue
+            metadata = dict(parent.metadata)
+            metadata.pop("parent_id", None)
+
             self.docs_collection.update_one(
-                {"parent_id": parent_id},
+                {"_id": parent_id},
                 {"$set": {
-                    "parent_id": parent_id,
                     "content": parent.page_content,
-                    "metadata": parent.metadata,
+                    "metadata": metadata,
                 }},
                 upsert=True,
             )
             count += 1
         return count
+
+
+_ingestion_instance: IngestionService | None = None
+
+
+def get_ingestion_service() -> IngestionService:
+    """Lazy singleton — tạo IngestionService 1 lần duy nhất."""
+    global _ingestion_instance
+    if _ingestion_instance is None:
+        logger.info("[singleton] Khởi tạo IngestionService instance...")
+        _ingestion_instance = IngestionService()
+    return _ingestion_instance

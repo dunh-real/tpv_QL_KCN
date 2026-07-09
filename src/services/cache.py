@@ -45,7 +45,16 @@ class RedisCache:
             logger.error(f"Lỗi khi set cache Redis: {e}")
             return False
 
-redis_cache = RedisCache()
+_redis_cache = None
+
+
+def get_redis_cache():
+    """Lazy singleton"""
+    global _redis_cache
+    if _redis_cache is None:
+        _redis_cache = RedisCache()
+    return _redis_cache
+
 
 def cache_llm_response(ttl_seconds: int = 86400):
     """
@@ -54,15 +63,26 @@ def cache_llm_response(ttl_seconds: int = 86400):
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            if not redis_cache.client:
+            cache = get_redis_cache()
+            if not cache.client:
                 return await func(*args, **kwargs)
                 
             import hashlib
-            prompt_str = str(args) + str(kwargs)
+            import inspect
+
+            sig = inspect.signature(func)
+            bound_args = sig.bind(*args, **kwargs)
+            bound_args.apply_defaults()
+
+            args_dict = dict(bound_args.arguments)
+            args_dict.pop('self', None)
+            args_dict.pop('cls', None)
+
+            prompt_str = str(args_dict)
             prompt_hash = hashlib.md5(prompt_str.encode('utf-8')).hexdigest()
             cache_key = f"llm_cache:{func.__name__}:{prompt_hash}"
             
-            cached_result = redis_cache.get(cache_key)
+            cached_result = cache.get(cache_key)
             if cached_result is not None:
                 logger.info(f"Cache HIT cho LLM: {cache_key}")
                 return cached_result
@@ -71,7 +91,7 @@ def cache_llm_response(ttl_seconds: int = 86400):
             result = await func(*args, **kwargs)
             
             if result and not str(result).startswith("Error:"):
-                redis_cache.set(cache_key, result, ttl_seconds)
+                cache.set(cache_key, result, ttl_seconds)
                 
             return result
         return wrapper
