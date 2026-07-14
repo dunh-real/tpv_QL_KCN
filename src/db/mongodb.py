@@ -1,6 +1,6 @@
 from src.core.config import settings
 from src.core.logger import get_logger
-from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
 
 logger = get_logger(__name__)
 
@@ -9,15 +9,15 @@ _db = None
 
 def get_db():
     """
-    Get the database connection.
+    Get the async database connection.
     Returns:
-        Database: The database connection.
+        Database: The async database connection.
     """
     global _client, _db
     if _client is None:
-        _client = MongoClient(settings.MONGO_URL, serverSelectionTimeoutMS=5000)
+        _client = AsyncIOMotorClient(settings.MONGO_URL, serverSelectionTimeoutMS=5000)
         _db = _client[settings.MONGODB_NAME]
-        logger.info("Khởi tạo kết nối MongoDB thành công")
+        logger.info("Khởi tạo kết nối Motor (MongoDB) thành công")
     return _db
 
 def get_docs_collection():
@@ -30,7 +30,7 @@ class _LazyCollection:
         Args:
             name (str): The name of the collection.
         Returns:
-            Collection: The collection.
+            Collection: The async collection.
         """
         return getattr(get_docs_collection(), name)
 

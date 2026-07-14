@@ -21,16 +21,17 @@ class IngestionService:
     """
 
     def __init__(self):
+        from src.services.embedding_service import get_embedding_service
         self.docs_collection = get_docs_collection()
 
         qdrant_config = QdrantConfig()
-        embedding_service = EmbeddingService()
+        embedding_service = get_embedding_service()
         self.document_store = QdrantDocumentStore(
             config=qdrant_config,
             embedding_service=embedding_service,
         )
 
-    def ingest(
+    async def ingest(
         self,
         parent_chunks: List[Document],
         children_chunks: List[Document],
@@ -44,14 +45,14 @@ class IngestionService:
         Returns:
             dict: Thống kê số parent và children đã lưu.
         """
-        # Bước 1: Lưu parent_chunks vào MongoDB
+        # Bước 1: Lưu parent_chunks vào MongoDB (dùng async motor)
         logger.info(f"Bước 1 — Lưu {len(parent_chunks)} parent chunk(s) vào MongoDB...")
-        saved_parents = self._save_parents_to_mongo(parent_chunks)
+        saved_parents = await self._save_parents_to_mongo(parent_chunks)
         logger.info(f"  -> Đã lưu {saved_parents} parent chunk(s).")
 
-        # Bước 2: Upsert children_chunks vào Qdrant
+        # Bước 2: Upsert children_chunks vào Qdrant (async)
         logger.info(f"Bước 2 — Upsert {len(children_chunks)} children chunk(s) vào Qdrant...")
-        self.document_store.upsert_documents(children_chunks)
+        await self.document_store.upsert_documents(children_chunks)
         logger.info(f"  -> Đã upsert {len(children_chunks)} children chunk(s).")
 
         return {
@@ -59,30 +60,38 @@ class IngestionService:
             "children_chunks": len(children_chunks),
         }
 
-    def _save_parents_to_mongo(self, parent_chunks: List[Document]) -> int:
+    async def _save_parents_to_mongo(self, parent_chunks: List[Document]) -> int:
         """
         Lưu danh sách parent_chunks vào MongoDB.
-        Dùng upsert theo parent_id để tránh trùng lặp.
+        Dùng bulk_write với UpdateOne để tối ưu I/O.
         """
-        count = 0
+        from pymongo import UpdateOne
+        
+        operations = []
         for parent in parent_chunks:
             parent_id = parent.metadata.get("parent_id")
             if not parent_id:
                 logger.warning("Parent chunk không có parent_id, bỏ qua.")
                 continue
+                
             metadata = dict(parent.metadata)
             metadata.pop("parent_id", None)
 
-            self.docs_collection.update_one(
-                {"_id": parent_id},
-                {"$set": {
-                    "content": parent.page_content,
-                    "metadata": metadata,
-                }},
-                upsert=True,
+            operations.append(
+                UpdateOne(
+                    {"_id": parent_id},
+                    {"$set": {
+                        "content": parent.page_content,
+                        "metadata": metadata,
+                    }},
+                    upsert=True,
+                )
             )
-            count += 1
-        return count
+            
+        if operations:
+            await self.docs_collection.bulk_write(operations)
+            
+        return len(operations)
 
 
 _ingestion_instance: IngestionService | None = None

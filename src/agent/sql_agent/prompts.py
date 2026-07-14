@@ -1,5 +1,5 @@
 from langchain_core.prompts import ChatPromptTemplate
-from src.agent.generate_sql_agent.constants import DEFAULT_ROW_LIMIT
+from src.agent.sql_agent.constants import DEFAULT_ROW_LIMIT
 
 
 

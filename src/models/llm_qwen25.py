@@ -41,3 +41,12 @@ class Qwen25Model:
                 yield chunk.content
         except Exception as e:
             yield f"Error: {str(e)}"
+
+_qwen25_instance: Qwen25Model | None = None
+
+def get_qwen25_model() -> Qwen25Model:
+    """Lazy singleton — tạo Qwen25Model 1 lần duy nhất."""
+    global _qwen25_instance
+    if _qwen25_instance is None:
+        _qwen25_instance = Qwen25Model()
+    return _qwen25_instance

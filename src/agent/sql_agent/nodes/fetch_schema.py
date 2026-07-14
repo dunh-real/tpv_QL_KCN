@@ -1,13 +1,13 @@
 import asyncio
-from src.agent.generate_sql_agent.state import GenerateSQLState
+from src.agent.sql_agent.state import SQLState
 from src.db.mysql import db_manager
 from src.core.logger import get_logger
-from src.agent.generate_sql_agent.utils import get_schema_service
+from src.agent.sql_agent.utils import get_schema_service
 
 logger = get_logger(__name__)
 
 
-async def fetch_schema_node(state: GenerateSQLState) -> dict:
+async def fetch_schema_node(state: SQLState) -> dict:
     """
     Fetch DDL schema từ MySQL và lưu vào state thông qua quy trình RAG + GraphRAG:
       1. Retrieve vector DB để lấy list table liên quan đến câu hỏi.

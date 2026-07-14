@@ -1,17 +1,13 @@
 
-
-import re
-from src.agent.generate_sql_agent.state import GenerateSQLState
-from src.agent.generate_sql_agent.prompts import GENERATE_SQL_PROMPT
+from src.agent.sql_agent.state import SQLState
+from src.agent.sql_agent.prompts import GENERATE_SQL_PROMPT
+from src.agent.sql_agent.utils import get_llm, clean_output
 from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-from src.agent.generate_sql_agent.utils import get_llm, clean_output
-
-
-async def generate_sql_node(state: GenerateSQLState) -> dict:
+async def generate_sql_node(state: SQLState) -> dict:
     """
     Gọi LLM để sinh câu lệnh SQL từ câu hỏi tự nhiên của người dùng.
 

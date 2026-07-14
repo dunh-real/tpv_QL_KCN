@@ -1,6 +1,7 @@
-def main():
-    print("Hello from ql-kcn!")
+import uvicorn
+import dotenv
 
+dotenv.load_dotenv()
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run("src.api.server:app", host="0.0.0.0", port=8000, reload=True)

@@ -1,13 +1,13 @@
 
-from src.agent.generate_sql_agent.state import GenerateSQLState
-from src.agent.generate_sql_agent.prompts import FIX_SQL_PROMPT
-from src.agent.generate_sql_agent.utils import get_llm, clean_output
+from src.agent.sql_agent.state import SQLState
+from src.agent.sql_agent.prompts import FIX_SQL_PROMPT
+from src.agent.sql_agent.utils import get_llm, clean_output
 from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-async def fallback_node(state: GenerateSQLState) -> dict:
+async def fallback_node(state: SQLState) -> dict:
     """
     Yêu cầu LLM sửa lại câu SQL khi SQL bị lỗi (cú pháp, chạy thất bại, hoặc bị chặn bởi security).
     """

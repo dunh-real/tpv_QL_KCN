@@ -3,22 +3,14 @@ from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-_llm_instance = None
 _schema_service_instance = None
-
 
 def get_llm():
     """
     Trả về instance LLM duy nhất
     """
-    global _llm_instance
-    if _llm_instance is None:
-        from src.models.llm_qwen25 import Qwen25Model
-        logger.info("[utils] Khởi tạo LLM instance cho SQL Agent...")
-        _llm_instance = Qwen25Model()
-
-    return _llm_instance.get_llm()
-
+    from src.models.llm_qwen25 import get_qwen25_model
+    return get_qwen25_model().get_llm()
 
 def get_schema_service():
     """

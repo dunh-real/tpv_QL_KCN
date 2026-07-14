@@ -6,7 +6,7 @@ from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-def ingest_file(file_path: str) -> dict:
+async def ingest_file(file_path: str) -> dict:
     """
     Đọc nội dung từ file, xử lý chunking và ingest vào VectorDB (Qdrant) & MongoDB.
     
@@ -51,7 +51,7 @@ def ingest_file(file_path: str) -> dict:
     logger.info("Tiến hành ingest vào database (MongoDB & Qdrant)...")
     ingestion_service = get_ingestion_service()
     
-    result = ingestion_service.ingest(parent_chunks, children_chunks)
+    result = await ingestion_service.ingest(parent_chunks, children_chunks)
     
     logger.info(f"Hoàn tất ingest file '{os.path.basename(file_path)}': {result}")
     return result

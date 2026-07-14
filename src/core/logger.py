@@ -1,6 +1,9 @@
 import logging
 import sys
 
+if sys.stdout.encoding != 'utf-8' and hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 def get_logger(name: str):
     logger = logging.getLogger(name)
     if not logger.handlers:
