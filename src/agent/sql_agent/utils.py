@@ -3,7 +3,6 @@ from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-_schema_service_instance = None
 
 def get_llm():
     """
@@ -14,15 +13,10 @@ def get_llm():
 
 def get_schema_service():
     """
-    Trả về instance SqlSchemaService duy nhất
+    Trả về instance SqlSchemaService duy nhất (delegates to existing singleton)
     """
-    global _schema_service_instance
-    if _schema_service_instance is None:
-        from src.services.schema_service import SqlSchemaService
-        logger.info("[utils] Khởi tạo SqlSchemaService instance cho SQL Agent...")
-        _schema_service_instance = SqlSchemaService()
-
-    return _schema_service_instance
+    from src.services.schema_service import get_schema_service as _get_schema_service
+    return _get_schema_service()
 
 
 def clean_output(raw: str) -> str:

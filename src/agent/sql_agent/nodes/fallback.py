@@ -6,6 +6,15 @@ from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+_fallback_chain = None
+
+
+def _get_fallback_chain():
+    global _fallback_chain
+    if _fallback_chain is None:
+        _fallback_chain = FIX_SQL_PROMPT | get_llm()
+    return _fallback_chain
+
 
 async def fallback_node(state: SQLState) -> dict:
     """
@@ -19,8 +28,7 @@ async def fallback_node(state: SQLState) -> dict:
     sql_query = state.get("sql_query", "")
     error_msg = state.get("error", "Không rõ lỗi")
 
-    llm = get_llm()
-    chain = FIX_SQL_PROMPT | llm
+    chain = _get_fallback_chain()
 
     try:
         response = await chain.ainvoke({

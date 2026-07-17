@@ -76,13 +76,20 @@ class RetrieverService:
             self.reranker.rerank, query, texts, rerank_top_k, rerank_threshold
         )
 
-        # Map text → Document gốc để lấy lại metadata (parent_id)
-        text_to_doc = {doc.page_content: doc for doc in qdrant_docs}
+        # Map reranked text back to original Document via index
+        # (avoids collision when 2 chunks have identical page_content)
+        text_to_indices: dict[str, list[int]] = {}
+        for i, text in enumerate(texts):
+            text_to_indices.setdefault(text, []).append(i)
+
+        seen_indices: set[int] = set()
         top_docs: List[Document] = []
         for text, _ in reranked_pairs:
-            doc = text_to_doc.get(text)
-            if doc:
-                top_docs.append(doc)
+            for idx in text_to_indices.get(text, []):
+                if idx not in seen_indices:
+                    seen_indices.add(idx)
+                    top_docs.append(qdrant_docs[idx])
+                    break
 
         logger.info(f"Sau rerank còn {len(top_docs)} documents.")
 

@@ -6,6 +6,17 @@ from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+_format_chain = None
+
+
+def _get_format_chain():
+    """Cache the format-answer chain — avoids recreating it every request."""
+    global _format_chain
+    if _format_chain is None:
+        llm = get_llm()
+        _format_chain = (FORMAT_ANSWER_PROMPT | llm).with_config({"tags": ["format_answer"]})
+    return _format_chain
+
 
 async def format_answer_node(state: AgentState, config: RunnableConfig = None):
     question = state["question"]
@@ -30,12 +41,10 @@ async def format_answer_node(state: AgentState, config: RunnableConfig = None):
     else:
         sql_text = "Không có thông tin từ cơ sở dữ liệu."
 
-
     try:
-        llm = get_llm()
-        chain = (FORMAT_ANSWER_PROMPT | llm).with_config({"tags": ["format_answer"]})
+        chain = _get_format_chain()
         
-        response_content = ""
+        parts = []
         async for chunk in chain.astream(
             {
                 "question": question,
@@ -44,9 +53,10 @@ async def format_answer_node(state: AgentState, config: RunnableConfig = None):
             },
             config=config
         ):
-            response_content += chunk.content
+            if chunk.content:
+                parts.append(chunk.content)
         
-        return {"final_answer": response_content}
+        return {"final_answer": "".join(parts)}
     except Exception as e:
         logger.error(f"[format_answer_node] Lỗi khi sinh câu trả lời: {e}", exc_info=True)
         return {"final_answer": "Xin lỗi, đã có lỗi xảy ra khi xử lý câu trả lời. Vui lòng thử lại."}

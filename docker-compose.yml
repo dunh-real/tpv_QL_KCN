@@ -30,6 +30,18 @@ services:
       - qdrant_data:/qdrant/storage:z
     restart: unless-stopped
 
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    restart: unless-stopped
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
 volumes:
   mongodb_data:
   qdrant_data:
+  rabbitmq_data:

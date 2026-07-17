@@ -54,14 +54,20 @@ class SqlSchemaService:
             self.reranker.rerank, query, texts, top_k, rerank_threshold
         )
         
-        # Bước 3: Map lại để lấy table_name
-        text_to_table = {doc.page_content: doc.metadata.get("table_name") for doc in results}
-        
+        # Bước 3: Map lại để lấy table_name (index-based to avoid collision)
         table_names = []
+        seen_tables: set[str] = set()
+        text_to_indices: dict[str, list[int]] = {}
+        for i, text in enumerate(texts):
+            text_to_indices.setdefault(text, []).append(i)
+
         for text, score in reranked_pairs:
-            t_name = text_to_table.get(text)
-            if t_name and t_name not in table_names:
-                table_names.append(t_name)
+            for idx in text_to_indices.get(text, []):
+                t_name = results[idx].metadata.get("table_name")
+                if t_name and t_name not in seen_tables:
+                    seen_tables.add(t_name)
+                    table_names.append(t_name)
+                break
                 
         logger.info(f"[schema] search_tables → {len(table_names)} bảng: {table_names}")
         return table_names

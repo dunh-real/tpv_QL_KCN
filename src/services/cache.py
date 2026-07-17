@@ -1,3 +1,5 @@
+import hashlib
+import inspect
 import json
 import redis
 from typing import Optional, Any
@@ -66,9 +68,6 @@ def cache_llm_response(ttl_seconds: int = 86400):
             cache = get_redis_cache()
             if not cache.client:
                 return await func(*args, **kwargs)
-                
-            import hashlib
-            import inspect
 
             sig = inspect.signature(func)
             bound_args = sig.bind(*args, **kwargs)
@@ -78,8 +77,8 @@ def cache_llm_response(ttl_seconds: int = 86400):
             args_dict.pop('self', None)
             args_dict.pop('cls', None)
 
-            prompt_str = str(args_dict)
-            prompt_hash = hashlib.md5(prompt_str.encode('utf-8')).hexdigest()
+            prompt_str = json.dumps(args_dict, sort_keys=True, default=str, ensure_ascii=False)
+            prompt_hash = hashlib.sha256(prompt_str.encode('utf-8')).hexdigest()
             cache_key = f"llm_cache:{func.__name__}:{prompt_hash}"
             
             cached_result = cache.get(cache_key)
@@ -90,7 +89,7 @@ def cache_llm_response(ttl_seconds: int = 86400):
             logger.info(f"Cache MISS cho LLM. Đang gọi AI...")
             result = await func(*args, **kwargs)
             
-            if result and not str(result).startswith("Error:"):
+            if result is not None:
                 cache.set(cache_key, result, ttl_seconds)
                 
             return result

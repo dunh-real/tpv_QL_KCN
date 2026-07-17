@@ -6,14 +6,24 @@ from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+_router_chain = None
+
+
+def _get_router_chain():
+    """Cache the structured-output chain — avoids recreating it every request."""
+    global _router_chain
+    if _router_chain is None:
+        llm = get_llm()
+        router_llm = llm.with_structured_output(RouteDecision)
+        _router_chain = ROUTE_PROMPT | router_llm
+    return _router_chain
+
 
 async def route_node(state: AgentState):
     """LLM phân tích và quyết định hướng đi"""
     try:
         question = state["question"]
-        llm = get_llm()
-        router_llm = llm.with_structured_output(RouteDecision)
-        chain = ROUTE_PROMPT | router_llm
+        chain = _get_router_chain()
         decision: RouteDecision = await chain.ainvoke({"question": question})
         return {"routes": decision.routes}
     except Exception as e:

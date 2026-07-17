@@ -1,10 +1,12 @@
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes.v1.chat import router as chat_router_v1
+from src.api.routes.v1.ocr import router as ocr_router_v1
 from src.core.logger import get_logger
+from src.api.security import verify_api_key, rate_limiter
 
 logger = get_logger(__name__)
 
@@ -25,7 +27,19 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(chat_router_v1, prefix="/api/v1/chat", tags=["Chat"])
+    app.include_router(
+        chat_router_v1, 
+        prefix="/api/v1/chat", 
+        tags=["Chat"],
+        dependencies=[Depends(verify_api_key), Depends(rate_limiter)]
+    )
+    app.include_router(
+        ocr_router_v1, 
+        prefix="/api/v1/ocr", 
+        tags=["OCR"],
+        dependencies=[Depends(verify_api_key), Depends(rate_limiter)]
+    )
+    
 
     @app.get("/health", tags=["Health"])
     async def health_check():

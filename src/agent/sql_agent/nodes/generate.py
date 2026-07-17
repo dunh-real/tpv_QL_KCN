@@ -6,6 +6,15 @@ from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+_generate_chain = None
+
+
+def _get_generate_chain():
+    global _generate_chain
+    if _generate_chain is None:
+        _generate_chain = GENERATE_SQL_PROMPT | get_llm()
+    return _generate_chain
+
 
 async def generate_sql_node(state: SQLState) -> dict:
     """
@@ -25,8 +34,7 @@ async def generate_sql_node(state: SQLState) -> dict:
 
     logger.info(f"[generate_sql] Đang sinh SQL cho câu hỏi: '{question}'")
 
-    llm = get_llm()
-    chain = GENERATE_SQL_PROMPT | llm
+    chain = _get_generate_chain()
 
     try:
         response = await chain.ainvoke({
@@ -47,3 +55,4 @@ async def generate_sql_node(state: SQLState) -> dict:
             "retries": 0,
             "error": str(e),
         }
+

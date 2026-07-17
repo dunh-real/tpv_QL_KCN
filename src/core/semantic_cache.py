@@ -1,6 +1,6 @@
-
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Optional
 
@@ -18,7 +18,6 @@ URL        = f"http://{settings.QDRANT_HOST}:{settings.QDRANT_PORT}"
 API_KEY    = settings.QDRANT_API_KEY
 
 _client: Optional[AsyncQdrantClient] = None
-_embedding = None
 collection_ready: bool = False
 
 
@@ -30,14 +29,10 @@ def _get_client() -> AsyncQdrantClient:
 
 
 def _get_embedding():
-    global _embedding
-    if _embedding is None:
-        from src.services.embedding_service import EmbeddingService
-        _embedding = EmbeddingService()
-    return _embedding
+    """Reuse the global EmbeddingService singleton."""
+    from src.services.embedding_service import get_embedding_service
+    return get_embedding_service()
 
-
-import asyncio
 
 _collection_lock = asyncio.Lock()
 
