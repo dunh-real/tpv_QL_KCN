@@ -46,7 +46,7 @@ def ingest_file(
     """
     logger.info(f"[Ingest Pipeline] Bắt đầu xử lý file: {file_name}")
 
-    # ── Bước 1: Download file từ MinIO (sync, có retry) ─────────────────
+    #Bước 1: Download file từ MinIO 
     if progress_callback:
         progress_callback("Downloading", 5)
 
@@ -68,7 +68,7 @@ def ingest_file(
         metadata={"source": file_url, "filename": file_name},
     )
 
-    # ── Bước 2: Xoá dữ liệu cũ của file (idempotency) ─────────────────
+    # Bước 2: Xoá dữ liệu cũ của file 
     if progress_callback:
         progress_callback("Cleaning old data", 15)
 
@@ -76,7 +76,7 @@ def ingest_file(
     asyncio.run(ingestion_service.delete_by_filename(file_name))
     logger.info(f"[Ingest Pipeline] Đã xoá dữ liệu cũ của '{file_name}'.")
 
-    # ── Bước 3: Chunking (sync, CPU-bound) ──────────────────────────────
+    # Bước 3: Chunking 
     if progress_callback:
         progress_callback("Chunking", 25)
 
@@ -92,7 +92,7 @@ def ingest_file(
         logger.warning("Không có chunk nào được tạo ra từ tài liệu này.")
         return {"parent_chunks": 0, "children_chunks": 0}
 
-    # ── Bước 4: Ingest vào MongoDB + Qdrant (async bridge 1 lần) ───────
+    # Bước 4: Ingest vào MongoDB + Qdrant 
     if progress_callback:
         progress_callback("Ingesting", 50)
 
