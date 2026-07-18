@@ -15,7 +15,7 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
-@router.post("/", response_model=OCRQueueResponse)
+@router.post("/", response_model=OCRQueueResponse, status_code=202)
 async def start_ocr(request: OCRRequest):
     """Submit a document for background OCR processing."""
     task = process_document.delay(str(request.file_url), request.filename)

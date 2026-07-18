@@ -78,6 +78,7 @@ class QdrantDocumentStore:
             timeout=60,
         )
         self.sparse_embedding = get_sparse_embedding()
+        self._collection_ready = False
 
     def _encode_sparse_sync(self, texts: list[str]) -> list[models.SparseVector]:
         """Tạo SparseVector đồng bộ bằng fastembed (tính TF)."""
@@ -101,7 +102,11 @@ class QdrantDocumentStore:
         Tạo collection với:
           - 1 dense named vector 
           - 1 sparse named vector với modifier IDF cho BM25 (Qdrant 1.10+)
+        Chỉ kiểm tra 1 lần duy nhất, sau đó cache kết quả.
         """
+        if self._collection_ready:
+            return
+
         name = self.config.collection_name
         exists = await self.client.collection_exists(name)
         if exists:
@@ -112,6 +117,7 @@ class QdrantDocumentStore:
                 await self.client.delete_collection(name)
             else:
                 logger.info(f"[qdrant] Collection '{name}' đã tồn tại và khớp dimension, bỏ qua tạo mới.")
+                self._collection_ready = True
                 return
         quantization: QuantizationConfig | None = None
         if self.config.use_quantization:
@@ -150,6 +156,7 @@ class QdrantDocumentStore:
                 indexing_threshold=self.config.indexing_threshold,
             ),
         )
+        self._collection_ready = True
 
     async def collection_info(self) -> dict[str, Any]:
         info = await self.client.get_collection(self.config.collection_name)

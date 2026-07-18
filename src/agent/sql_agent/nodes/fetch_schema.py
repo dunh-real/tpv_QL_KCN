@@ -1,6 +1,6 @@
 import asyncio
 from src.agent.sql_agent.state import SQLState
-from src.db.mysql import db_manager
+from src.db.mysql import get_db_manager
 from src.core.logger import get_logger
 from src.agent.sql_agent.utils import get_schema_service
 
@@ -24,7 +24,7 @@ async def fetch_schema_node(state: SQLState) -> dict:
     
     if target_tables:
         logger.info("[fetch_schema] 2. GraphRAG: Mở rộng các bảng qua khóa ngoại...")
-        expanded_tables = db_manager.get_related_tables(target_tables)
+        expanded_tables = get_db_manager().get_related_tables(target_tables)
         logger.info(f"[fetch_schema] Các bảng sau mở rộng: {expanded_tables}")
     else:
         logger.warning("[fetch_schema] Không tìm thấy bảng nào từ Vector DB.")
@@ -33,8 +33,7 @@ async def fetch_schema_node(state: SQLState) -> dict:
     logger.info("[fetch_schema] 3. Lấy DDL từ database...")
     schema_ddl = ""
     if expanded_tables:
-        # Lấy DDL từ database thực tế
-        schema_ddl = await asyncio.to_thread(db_manager.get_schema_ddl, expanded_tables)
+        schema_ddl = await asyncio.to_thread(get_db_manager().get_schema_ddl, expanded_tables)
         
     logger.info(f"[fetch_schema] Hoàn tất fetch schema (kích thước {len(schema_ddl)} chars).")
     

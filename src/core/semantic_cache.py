@@ -34,14 +34,23 @@ def _get_embedding():
     return get_embedding_service()
 
 
-_collection_lock = asyncio.Lock()
+_collection_lock: asyncio.Lock | None = None
+
+
+def _get_lock() -> asyncio.Lock:
+    """Lazy init — tránh tạo Lock ngoài event loop."""
+    global _collection_lock
+    if _collection_lock is None:
+        _collection_lock = asyncio.Lock()
+    return _collection_lock
+
 
 async def _ensure_collection() -> None:
     global collection_ready
     if collection_ready:
         return
-        
-    async with _collection_lock:
+
+    async with _get_lock():
         # Check again in case another task initialized it while we were waiting
         if collection_ready:
             return

@@ -54,3 +54,44 @@ def process_document(self, file_url: str, filename: str):
     except Exception as e:
         logger.error(f"OCR task failed: {e}", exc_info=True)
         raise
+
+
+
+@celery_app.task(
+    bind=True,
+    name="tasks.ingest_document",
+    autoretry_for=(ConnectionError, TimeoutError),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+)
+def ingest_document(self, file_url: str, filename: str):
+    """
+    Celery task: Download tài liệu markdown từ MinIO → Chunking → Ingest vào VectorDB.
+
+    Returns a dict with status and ingest statistics on success.
+    Raises on failure so Celery marks the task as FAILURE with traceback.
+    """
+    from src.core.ingestion_pipeline import ingest_file
+
+    try:
+        def _on_progress(step: str, progress: int) -> None:
+            self.update_state(
+                state="PROCESSING",
+                meta={"step": step, "progress": progress},
+            )
+
+        result = ingest_file(
+            file_url=file_url,
+            file_name=filename,
+            progress_callback=_on_progress,
+        )
+
+        logger.info(f"Ingest task succeeded: {result}")
+        return {
+            "status": "success",
+            **result,
+        }
+
+    except Exception as e:
+        logger.error(f"Ingest task failed: {e}", exc_info=True)
+        raise

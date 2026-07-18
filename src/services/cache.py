@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import inspect
 import json
@@ -16,7 +17,10 @@ class RedisCache:
                 host=settings.REDIS_HOST,
                 port=settings.REDIS_PORT,
                 db=settings.REDIS_DB,
-                decode_responses=True
+                decode_responses=True,
+                max_connections=20,
+                socket_timeout=5,
+                socket_connect_timeout=5,
             )
             self.client.ping()
             logger.info(f"Kết nối Redis thành công tại {settings.REDIS_HOST}:{settings.REDIS_PORT}")
@@ -61,6 +65,7 @@ def get_redis_cache():
 def cache_llm_response(ttl_seconds: int = 86400):
     """
     Decorator để tự động cache kết quả trả về của các hàm asyncio gọi LLM.
+    Redis I/O chạy trong thread pool để không block event loop.
     """
     def decorator(func):
         @wraps(func)
@@ -80,18 +85,18 @@ def cache_llm_response(ttl_seconds: int = 86400):
             prompt_str = json.dumps(args_dict, sort_keys=True, default=str, ensure_ascii=False)
             prompt_hash = hashlib.sha256(prompt_str.encode('utf-8')).hexdigest()
             cache_key = f"llm_cache:{func.__name__}:{prompt_hash}"
-            
-            cached_result = cache.get(cache_key)
+
+            cached_result = await asyncio.to_thread(cache.get, cache_key)
             if cached_result is not None:
                 logger.info(f"Cache HIT cho LLM: {cache_key}")
                 return cached_result
-                
+
             logger.info(f"Cache MISS cho LLM. Đang gọi AI...")
             result = await func(*args, **kwargs)
-            
+
             if result is not None:
-                cache.set(cache_key, result, ttl_seconds)
-                
+                await asyncio.to_thread(cache.set, cache_key, result, ttl_seconds)
+
             return result
         return wrapper
     return decorator

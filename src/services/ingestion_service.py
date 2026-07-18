@@ -93,6 +93,31 @@ class IngestionService:
             
         return len(operations)
 
+    async def delete_by_filename(self, filename: str) -> None:
+        """
+        Xoá tất cả dữ liệu cũ của file theo filename (cả MongoDB và Qdrant).
+        Dùng để đảm bảo idempotency khi ingest lại cùng một file.
+        """
+        # Xoá parent chunks từ MongoDB
+        result = await self.docs_collection.delete_many(
+            {"metadata.filename": filename}
+        )
+        logger.info(f"Đã xoá {result.deleted_count} parent chunk(s) cũ từ MongoDB.")
+
+        # Xoá children chunks từ Qdrant
+        from qdrant_client.http.models import FieldCondition, Filter, MatchValue
+
+        await self.document_store.delete_by_filter(
+            Filter(
+                must=[
+                    FieldCondition(
+                        key="filename", match=MatchValue(value=filename)
+                    )
+                ]
+            )
+        )
+        logger.info(f"Đã xoá children chunk(s) cũ từ Qdrant theo filename='{filename}'.")
+
 
 _ingestion_instance: IngestionService | None = None
 
