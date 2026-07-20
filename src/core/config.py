@@ -49,6 +49,18 @@ class Settings(BaseSettings):
     MYSQL_PORT: int
     MYSQL_DB: str
 
+    MINIO_ENDPOINT:str
+    MINIO_ACCESS_KEY:str
+    MINIO_SECRET_KEY:str
+    MINIO_BUCKET:str
+    MINIO_SECURE:bool
+
+    RABBITMQ_URL:str
+
+    # Security configs
+    API_KEYS: str = ""
+    RATE_LIMIT_PER_MINUTE: int = 20
+
     @property
     def DATABASE_URL(self) -> str:
         return f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
@@ -56,6 +68,9 @@ class Settings(BaseSettings):
     @property
     def MYSQL_DATABASE_URL(self) -> str:
         return f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DB}"
+    @property
+    def REDIS_URL(self) -> str:
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
     LOCAL_STORAGE_DIR: str = "local_storage"
     

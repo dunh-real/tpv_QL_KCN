@@ -1,11 +1,11 @@
 
 
-from typing import TypedDict, Optional, Any, Annotated
+from typing import TypedDict, Optional, Annotated
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
 
-class GenerateSQLState(TypedDict, total=False):
+class SQLState(TypedDict, total=False):
 
     messages: Annotated[list[BaseMessage], add_messages]
     """Danh sách các tin nhắn trong hội thoại (User, AI, Tool)."""
@@ -28,8 +28,12 @@ class GenerateSQLState(TypedDict, total=False):
     validation_error_type: Optional[str]
     """Loại lỗi validation: 'EMPTY' | 'FORBIDDEN' | 'SYNTAX_ERROR' | None."""
 
+
     error: Optional[str]
     """Thông điệp lỗi từ database hoặc các bước xử lý."""
 
     retries: int
     """Số lần đã retry (fallback). Đếm từ 0."""
+
+    result: Optional[str]
+    """Kết quả truy vấn sau khi execute SQL."""

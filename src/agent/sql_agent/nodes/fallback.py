@@ -1,13 +1,22 @@
 
-from src.agent.generate_sql_agent.state import GenerateSQLState
-from src.agent.generate_sql_agent.prompts import FIX_SQL_PROMPT
-from src.agent.generate_sql_agent.utils import get_llm, clean_output
+from src.agent.sql_agent.state import SQLState
+from src.agent.sql_agent.prompts import FIX_SQL_PROMPT
+from src.agent.sql_agent.utils import get_llm, clean_output
 from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+_fallback_chain = None
 
-async def fallback_node(state: GenerateSQLState) -> dict:
+
+def _get_fallback_chain():
+    global _fallback_chain
+    if _fallback_chain is None:
+        _fallback_chain = FIX_SQL_PROMPT | get_llm()
+    return _fallback_chain
+
+
+async def fallback_node(state: SQLState) -> dict:
     """
     Yêu cầu LLM sửa lại câu SQL khi SQL bị lỗi (cú pháp, chạy thất bại, hoặc bị chặn bởi security).
     """
@@ -19,8 +28,7 @@ async def fallback_node(state: GenerateSQLState) -> dict:
     sql_query = state.get("sql_query", "")
     error_msg = state.get("error", "Không rõ lỗi")
 
-    llm = get_llm()
-    chain = FIX_SQL_PROMPT | llm
+    chain = _get_fallback_chain()
 
     try:
         response = await chain.ainvoke({

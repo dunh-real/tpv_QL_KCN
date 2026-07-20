@@ -1,66 +1,186 @@
-import torch
-import base64
-from pathlib import Path
-import pypdfium2 as pdfium
 import io
-from transformers import LightOnOcrForConditionalGeneration, LightOnOcrProcessor
+import base64
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Callable, Optional, Union
 
-NAME_OCR_MODEL = 'lightonai/LightOnOcr-2-1B'
+import fitz
+from PIL import Image
+from langchain_core.messages import HumanMessage
+from langchain_ollama import ChatOllama
 
-PATH_INPUT_FILE = '../../data/raw_dir'
-PATH_OUTPUT_FILE = '../../data/md_dir'
+from src.core.config import settings
+from src.core.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+_DEFAULT_PROMPT = (
+    "Bạn là một chuyên gia số hóa tài liệu. "
+    "Hãy trích xuất chính xác toàn bộ văn bản, bảng biểu, danh sách trong ảnh này. "
+    "Trình bày kết quả dưới định dạng Markdown thuần túy. Không thêm lời mở đầu hay kết luận."
+)
+
+_MAX_OCR_WORKERS = 2
+
 
 class OCRService:
-    def __init__(self, model_name = NAME_OCR_MODEL):
-        self.device = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
-        self.dtype = torch.float32 if self.device == "mps" else torch.bfloat16
+    """
+    Extract text from PDF/image documents using a Vision-Language Model
+    and produce Markdown output.
+    """
 
-        self.model = LightOnOcrForConditionalGeneration.from_pretrained(model_name, torch_dtype = self.dtype).to(self.device)
-        self.processor = LightOnOcrProcessor.from_pretrained(model_name)
-    
-    def processing_data(self, path_input):
-        path_output = Path(PATH_OUTPUT_FILE) / (path_input.stem + '.md')
-        Path(PATH_OUTPUT_FILE).mkdir(parents = True, exist_ok = True)
-
-        pdf = pdfium.PdfDocument(path_input)
-        num_pages = len(pdf)
-
+    def __init__(
+        self,
+        model_name: str = settings.OCR_MODEL,
+        temperature: float = 0.0,
+    ):
+        self.model_name = model_name
+        self.temperature = temperature
         try:
-            for i in range(num_pages):
-                page = pdf[i]
-                pil_image = page.render(scale = 2.0).to_pil()
-                page.close()
+            self.llm = ChatOllama(
+                model=self.model_name,
+                temperature=self.temperature,
+                base_url=settings.OLLAMA_BASE_URL,
+            )
+            logger.info(f"Initialized OCR LLM with model: {self.model_name}")
+        except Exception as e:
+            logger.error(f"Failed to initialize OCR LLM: {e}")
+            raise
 
-                buffer = io.BytesIO()
-                pil_image.save(buffer, format = 'PNG')
-                image_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-                pil_image.close()
-                buffer.close()
 
-                conversation = [{
-                    "role": "user",
-                    "content": [
-                        {"type": "image", "url": f"data:image/png;base64, {image_base64}"},
-                        {"type": "text", "text": "Extract all text from this document and convert to markdown format."}
-                    ]
-                }]
 
-                inputs = self.processor.apply_chat_template(
-                    conversation,
-                    add_generation_prompt = True,
-                    tokenize = True,
-                    return_dict = True,
-                    return_tensors = "pt",
-                )
+    @staticmethod
+    def _pixmap_to_base64(pix: fitz.Pixmap, max_size: int = 1024) -> str:
+        """Convert a PyMuPDF Pixmap to a Base64-encoded JPEG string."""
+        mode = "RGBA" if pix.alpha else "RGB"
+        img = Image.frombytes(mode, [pix.width, pix.height], pix.samples)
 
-                inputs = {K: v.to(device = self.device, dtype = self.dtype) if v.is_floating_point() else v.to(self.device) for k, v in inputs.items()}
+        if img.mode != "RGB":
+            img = img.convert("RGB")
 
-                output_ids = self.model.generate(**inputs, max_new_tokens = 1024)
-                generated_ids = output_ids[0, inputs["input_ids"].shape[1]:]
-                output_text = self.processor.decode(generated_ids, skip_special_tokens = True)
+        if max(img.size) > max_size:
+            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+            logger.debug(f"Resized image to: {img.size}")
 
-                with open(path_output, "a", encoding = "utf-8") as f:
-                    f.write(output_text)
-        
-        finally:
-            pdf.close()
+        buffered = io.BytesIO()
+        img.save(buffered, format="JPEG", quality=85)
+        b64_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        buffered.close()
+        return b64_str
+
+    def extract_from_image(
+        self, b64_image: str, custom_prompt: Optional[str] = None
+    ) -> str:
+        """Send a base64 image to the VLM and return extracted text."""
+        prompt_text = custom_prompt or _DEFAULT_PROMPT
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": prompt_text},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"},
+                },
+            ]
+        )
+        response = self.llm.invoke([message])
+        return response.content
+
+
+    def _process_single_page(
+        self,
+        doc_bytes: bytes,
+        page_num: int,
+        total_pages: int,
+        prompt: Optional[str],
+    ) -> tuple[int, str]:
+        """Process a single page and return (page_num, markdown_text).
+
+        Opens a fresh fitz document from bytes so this method is safe
+        to call from multiple threads (PyMuPDF Document is NOT thread-safe,
+        but opening a new one per thread is).
+        """
+        try:
+            with fitz.open(stream=doc_bytes, filetype="pdf") as doc:
+                page = doc.load_page(page_num)
+                pix = page.get_pixmap(dpi=150, colorspace=fitz.csRGB)
+                b64_image = self._pixmap_to_base64(pix)
+                del pix  # Free pixmap memory immediately
+
+            page_text = self.extract_from_image(b64_image, prompt)
+            del b64_image  # Free base64 string memory
+
+            logger.info(f"Processed page {page_num + 1}/{total_pages}")
+            return page_num, f"\n\n\n# Page {page_num + 1}\n{page_text}"
+        except Exception as page_err:
+            logger.error(f"Error processing page {page_num + 1}: {page_err}")
+            return page_num, f"\n\n\n# Page {page_num + 1}\n[ERROR PROCESSING THIS PAGE]"
+
+
+
+    def process_file(
+        self,
+        pdf_input: Union[bytes, str, Path],
+        prompt: Optional[str] = None,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ) -> str:
+        """
+        Trích xuất nội dung từ file PDF -> Định dạng Markdown.
+        """
+        if isinstance(pdf_input, bytes):
+            pdf_bytes = pdf_input
+        elif isinstance(pdf_input, (str, Path)):
+            path_obj = Path(pdf_input)
+            if not path_obj.exists():
+                raise FileNotFoundError(f"File not found: {pdf_input}")
+            pdf_bytes = path_obj.read_bytes()
+        else:
+            raise ValueError("pdf_input must be bytes, str, or Path")
+
+        # --- Determine page count ---
+        with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+            total_pages = len(doc)
+        logger.info(f"Document has {total_pages} pages. Starting extraction...")
+
+        # --- Process pages concurrently ---
+        results: dict[int, str] = {}
+        completed = 0
+
+        with ThreadPoolExecutor(max_workers=_MAX_OCR_WORKERS) as executor:
+            futures = {
+                executor.submit(
+                    self._process_single_page, pdf_bytes, pn, total_pages, prompt
+                ): pn
+                for pn in range(total_pages)
+            }
+
+            for future in as_completed(futures):
+                page_num, page_md = future.result()
+                results[page_num] = page_md
+                completed += 1
+
+                if progress_callback:
+                    progress_callback(completed, total_pages)
+
+        # --- Reassemble in page order ---
+        markdown_pages = [results[pn] for pn in range(total_pages)]
+        final_markdown = "".join(markdown_pages)
+        logger.info("Markdown assembly complete.")
+        return final_markdown
+
+
+
+
+_ocr_service_instance: Optional[OCRService] = None
+_ocr_service_lock = threading.Lock()
+
+
+def get_ocr_service() -> OCRService:
+    """Thread-safe lazy singleton — creates OCRService once."""
+    global _ocr_service_instance
+    if _ocr_service_instance is None:
+        with _ocr_service_lock:
+            if _ocr_service_instance is None:
+                _ocr_service_instance = OCRService()
+    return _ocr_service_instance

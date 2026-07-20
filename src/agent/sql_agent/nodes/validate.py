@@ -2,8 +2,8 @@
 
 import re
 import asyncio
-from src.agent.generate_sql_agent.state import GenerateSQLState
-from src.agent.generate_sql_agent.constants import FORBIDDEN_STATEMENT_TYPES, FORBIDDEN_KEYWORDS_FALLBACK
+from src.agent.sql_agent.state import SQLState
+from src.agent.sql_agent.constants import FORBIDDEN_KEYWORDS_FALLBACK
 from src.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -60,8 +60,6 @@ def validate_with_sqlglot(sql: str) -> tuple[bool, str | None, str | None]:
 
             expr_type = type(expr).__name__.upper()
 
-            # Chỉ cho phép SELECT đơn thuần hoặc các phép SET (UNION, INTERSECT, EXCEPT)
-            # SETOPERATION là lớp cha trong AST của sqlglot cho các phép này
             is_allowed = (
                 expr_type in ("SELECT", "SETOPERATION")
                 or expr_type.startswith("UNION")
@@ -70,10 +68,7 @@ def validate_with_sqlglot(sql: str) -> tuple[bool, str | None, str | None]:
             )
             if not is_allowed:
                 return False, f"Lỗi bảo mật: Statement type '{expr_type}' không được phép. AI chỉ dùng SELECT.", "FORBIDDEN"
-            
-            pass
 
-        # Build lại SQL an toàn (normalization)
         safe_sql = sqlglot.transpile(sql, read="mysql", write="mysql")[0]
              
         return True, safe_sql.strip().rstrip(';') + ";", None
@@ -86,7 +81,7 @@ def validate_with_sqlglot(sql: str) -> tuple[bool, str | None, str | None]:
         return False, f"Lỗi không mong muốn khi kiểm duyệt: {e}", "SYNTAX_ERROR"
 
 
-async def validate_sql_node(state: GenerateSQLState) -> dict:
+async def validate_sql_node(state: SQLState) -> dict:
     """
     Kiểm tra cú pháp, tính an toàn và tự động chèn LIMIT vào câu SQL.
     """

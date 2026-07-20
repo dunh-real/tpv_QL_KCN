@@ -36,3 +36,15 @@ class RerankerService:
         # Sắp xếp và lấy top_k
         results = sorted(scored_results, key=lambda x: x[1], reverse=True)
         return results[:top_k]
+
+
+_reranker_instance: RerankerService | None = None
+
+
+def get_reranker_service() -> RerankerService:
+    """Lazy singleton — tạo RerankerService 1 lần duy nhất để tiết kiệm RAM."""
+    global _reranker_instance
+    if _reranker_instance is None:
+        logger.info("[singleton] Khởi tạo RerankerService instance...")
+        _reranker_instance = RerankerService()
+    return _reranker_instance

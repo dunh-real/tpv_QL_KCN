@@ -1,17 +1,22 @@
 
-
-import re
-from src.agent.generate_sql_agent.state import GenerateSQLState
-from src.agent.generate_sql_agent.prompts import GENERATE_SQL_PROMPT
+from src.agent.sql_agent.state import SQLState
+from src.agent.sql_agent.prompts import GENERATE_SQL_PROMPT
+from src.agent.sql_agent.utils import get_llm, clean_output
 from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+_generate_chain = None
 
-from src.agent.generate_sql_agent.utils import get_llm, clean_output
+
+def _get_generate_chain():
+    global _generate_chain
+    if _generate_chain is None:
+        _generate_chain = GENERATE_SQL_PROMPT | get_llm()
+    return _generate_chain
 
 
-async def generate_sql_node(state: GenerateSQLState) -> dict:
+async def generate_sql_node(state: SQLState) -> dict:
     """
     Gọi LLM để sinh câu lệnh SQL từ câu hỏi tự nhiên của người dùng.
 
@@ -29,8 +34,7 @@ async def generate_sql_node(state: GenerateSQLState) -> dict:
 
     logger.info(f"[generate_sql] Đang sinh SQL cho câu hỏi: '{question}'")
 
-    llm = get_llm()
-    chain = GENERATE_SQL_PROMPT | llm
+    chain = _get_generate_chain()
 
     try:
         response = await chain.ainvoke({
@@ -51,3 +55,4 @@ async def generate_sql_node(state: GenerateSQLState) -> dict:
             "retries": 0,
             "error": str(e),
         }
+

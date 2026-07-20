@@ -142,4 +142,13 @@ class MySQLManager:
             logger.error(f"Lỗi khi chạy SQL '{sql_query}': {e}")
             raise e
 
-db_manager = MySQLManager(settings.MYSQL_DATABASE_URL)
+
+_db_manager: MySQLManager | None = None
+
+
+def get_db_manager() -> MySQLManager:
+    """Lazy singleton — tạo MySQLManager 1 lần duy nhất."""
+    global _db_manager
+    if _db_manager is None:
+        _db_manager = MySQLManager(settings.MYSQL_DATABASE_URL)
+    return _db_manager

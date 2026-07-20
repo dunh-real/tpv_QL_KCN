@@ -124,3 +124,15 @@ class ChunkingBatch:
                     )
 
         return parent_chunks, children_chunks
+
+
+_chunking_instance: ChunkingBatch | None = None
+
+
+def get_chunking_service() -> ChunkingBatch:
+    """Lazy singleton — tránh load lại tokenizer mỗi lần gọi."""
+    global _chunking_instance
+    if _chunking_instance is None:
+        logger.info("[singleton] Khởi tạo ChunkingBatch instance...")
+        _chunking_instance = ChunkingBatch()
+    return _chunking_instance

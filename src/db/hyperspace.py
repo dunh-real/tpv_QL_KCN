@@ -1,6 +1,6 @@
 from src.core.config import settings
 from src.core.logger import get_logger
-from src.services.embedding import EmbeddingService
+from src.services.embedding_service import EmbeddingService
 from typing import List, Dict, Any, Optional
 from langchain_core.documents import Document
 from hyperspace import HyperspaceClient

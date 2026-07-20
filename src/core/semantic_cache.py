@@ -1,6 +1,6 @@
-
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Optional
 
@@ -18,40 +18,54 @@ URL        = f"http://{settings.QDRANT_HOST}:{settings.QDRANT_PORT}"
 API_KEY    = settings.QDRANT_API_KEY
 
 _client: Optional[AsyncQdrantClient] = None
-_embedding = None
 collection_ready: bool = False
 
 
 def _get_client() -> AsyncQdrantClient:
     global _client
     if _client is None:
-        _client = AsyncQdrantClient(url=URL, api_key=API_KEY, timeout=30)
+        _client = AsyncQdrantClient(url=URL, api_key=API_KEY or None, timeout=30)
     return _client
 
 
 def _get_embedding():
-    global _embedding
-    if _embedding is None:
-        from src.services.embedding_service import EmbeddingService
-        _embedding = EmbeddingService()
-    return _embedding
+    """Reuse the global EmbeddingService singleton."""
+    from src.services.embedding_service import get_embedding_service
+    return get_embedding_service()
+
+
+_collection_lock: asyncio.Lock | None = None
+
+
+def _get_lock() -> asyncio.Lock:
+    """Lazy init — tránh tạo Lock ngoài event loop."""
+    global _collection_lock
+    if _collection_lock is None:
+        _collection_lock = asyncio.Lock()
+    return _collection_lock
 
 
 async def _ensure_collection() -> None:
     global collection_ready
     if collection_ready:
         return
-    c = _get_client()
-    exists = await c.collection_exists(COLLECTION)
-    if not exists:
-        await c.create_collection(
-            collection_name=COLLECTION,
-            vectors_config=VectorParams(size=DIMENSION, distance=Distance.COSINE),
-        )
-        logger.info(f"[semantic_cache] Đã tạo Qdrant collection '{COLLECTION}'.")
-    else:
-        logger.debug(f"[semantic_cache] Collection '{COLLECTION}' đã tồn tại.")
-    collection_ready = True
+
+    async with _get_lock():
+        # Check again in case another task initialized it while we were waiting
+        if collection_ready:
+            return
+            
+        c = _get_client()
+        exists = await c.collection_exists(COLLECTION)
+        if not exists:
+            await c.create_collection(
+                collection_name=COLLECTION,
+                vectors_config=VectorParams(size=DIMENSION, distance=Distance.COSINE),
+            )
+            logger.info(f"[semantic_cache] Đã tạo Qdrant collection '{COLLECTION}'.")
+        else:
+            logger.debug(f"[semantic_cache] Collection '{COLLECTION}' đã tồn tại.")
+        collection_ready = True
 
 
 async def get_cached_sql(
@@ -72,7 +86,7 @@ async def get_cached_sql(
     """
     try:
         await _ensure_collection()
-        query_vector = await _get_embedding().embed_query(question)
+        query_vector = await _get_embedding().aembed_query(question)
 
         response = await _get_client().query_points(
             collection_name=COLLECTION,
@@ -108,7 +122,7 @@ async def cache_sql(question: str, sql_query: str) -> None:
     """
     try:
         await _ensure_collection()
-        vector = await _get_embedding().embed_query(question)
+        vector = await _get_embedding().aembed_query(question)
 
         point = models.PointStruct(
             id=str(uuid.uuid4()),

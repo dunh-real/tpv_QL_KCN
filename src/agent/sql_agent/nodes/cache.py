@@ -1,13 +1,13 @@
 
 
-from src.agent.generate_sql_agent.state import GenerateSQLState
+from src.agent.sql_agent.state import SQLState
 from src.core.semantic_cache import get_cached_sql, cache_sql
 from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-async def check_cache_node(state: GenerateSQLState) -> dict:
+async def check_cache_node(state: SQLState) -> dict:
     """
     Kiểm tra semantic cache trước khi gọi LLM để sinh SQL.
 
@@ -31,7 +31,7 @@ async def check_cache_node(state: GenerateSQLState) -> dict:
     return {"is_cache_hit": False}
 
 
-async def update_cache_node(state: GenerateSQLState) -> dict:
+async def update_cache_node(state: SQLState) -> dict:
     """
     Lưu câu hỏi + SQL vào cache sau khi thực thi thành công.
     Chỉ lưu khi: không có lỗi VÀ đây là SQL mới (không phải cache hit).
