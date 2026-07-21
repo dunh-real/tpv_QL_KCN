@@ -12,10 +12,6 @@ class Settings(BaseSettings):
     LLM_MAX_TOKENS: int = 1204
     OLLAMA_BASE_URL: str
 
-
-    HYPERSPACE_HOST:str
-    HYPERSPACE_COLLECTION_NAME:str  
-    HYPERSPACE_API_KEY:str
     SQL_COLLECTION_NAME:str
 
     VECTOR_DIMENSION:int
@@ -37,17 +33,17 @@ class Settings(BaseSettings):
     MONGODB_NAME:str
     MONGODB_COLLECTION_NAME:str
 
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_HOST: str
-    POSTGRES_PORT: int
-    POSTGRES_DB: str
-
     MYSQL_USER: str
     MYSQL_PASSWORD: str
     MYSQL_HOST: str
     MYSQL_PORT: int
     MYSQL_DB: str
+
+    MSSQL_USER: str = "sa"
+    MSSQL_PASSWORD: str = "password"
+    MSSQL_HOST: str = "localhost"
+    MSSQL_PORT: int = 1433
+    MSSQL_DB: str = "db"
 
     MINIO_ENDPOINT:str
     MINIO_ACCESS_KEY:str
@@ -68,6 +64,10 @@ class Settings(BaseSettings):
     @property
     def MYSQL_DATABASE_URL(self) -> str:
         return f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DB}"
+
+    @property
+    def MSSQL_DATABASE_URL(self) -> str:
+        return f"mssql+pymssql://{self.MSSQL_USER}:{self.MSSQL_PASSWORD}@{self.MSSQL_HOST}:{self.MSSQL_PORT}/{self.MSSQL_DB}"
     @property
     def REDIS_URL(self) -> str:
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"

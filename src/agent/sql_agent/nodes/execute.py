@@ -3,7 +3,7 @@ import time
 
 from src.agent.sql_agent.state import SQLState
 from src.agent.sql_agent.constants import MAX_RESULT_LENGTH
-from src.db.mysql import get_db_manager
+from src.db.mssql import get_mssql_manager
 from src.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -31,7 +31,7 @@ async def execute_sql_node(state: SQLState) -> dict:
     try:
         logger.info(f"[execute_sql] Đang gửi truy vấn DB: {sql_query}")
         start_ms = time.perf_counter() * 1000
-        result = await asyncio.to_thread(get_db_manager().run_query, sql_query)
+        result = await asyncio.to_thread(get_mssql_manager().run_query, sql_query)
         elapsed_ms = time.perf_counter() * 1000 - start_ms
 
         if not result or str(result) == "[]":

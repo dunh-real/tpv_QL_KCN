@@ -48,7 +48,7 @@ def validate_with_sqlglot(sql: str) -> tuple[bool, str | None, str | None]:
     """Sử dụng AST Parser để siêu kiểm tra."""
     try:
         # Parse SQL thành biểu thức AST
-        expressions = sqlglot.parse(sql, read="mysql")
+        expressions = sqlglot.parse(sql, read="tsql")
         
         if not expressions:
             return False, "Câu lệnh trống sau khi parse.", "EMPTY"
@@ -69,7 +69,7 @@ def validate_with_sqlglot(sql: str) -> tuple[bool, str | None, str | None]:
             if not is_allowed:
                 return False, f"Lỗi bảo mật: Statement type '{expr_type}' không được phép. AI chỉ dùng SELECT.", "FORBIDDEN"
 
-        safe_sql = sqlglot.transpile(sql, read="mysql", write="mysql")[0]
+        safe_sql = sqlglot.transpile(sql, read="tsql", write="tsql")[0]
              
         return True, safe_sql.strip().rstrip(';') + ";", None
 
